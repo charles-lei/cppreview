@@ -455,3 +455,142 @@ int main(){
 	filter([&](int x){return x > 3 && x < b;}, v);
 }
 ```
+
+## 16. 右值引用 && std::move
+
+```cpp
+
+// 左值引用函数
+printInt(int& i){std::cout << "lvalue reference" << i << std::endl;}
+
+// 右值引用函数
+printInt(int&& i){std::cout << "rvalue reference" << i << std::endl;}
+
+// a 左值
+int a = 2;
+
+// b 是左值引用
+int &b = a;
+
+// c 为右值引用
+int &&c;
+
+// 调用左值引用函数
+print(a);
+
+// 调用右值引用函数
+print(6);
+
+```
+
+### move 构造函数
+
+避免拷贝构造函数深度复制，性能较优。
+
+```cpp
+class myVector {
+private:
+    uint size_n = 0;
+    int *arr = nullptr;
+public:
+    explicit myVector(uint n): size_n(n){
+        if(n > 0) arr = new int[n];
+    }
+    // 拷贝构造
+    myVector(const myVector& v){
+        std::cout << "copy constructor" << std::endl;
+        size_n = v.size_n;
+        arr = new int[size_n];
+        for (int i = 0; i < size_n; i++){
+            arr[i] = v.arr[i];
+        }
+    }
+    // move 构造, 不必申请新的空间，可传入右值作为参数
+    myVector(myVector&& v){
+        std::cout << "move constructor" << std::endl;
+        size_n = v.size_n;
+        arr = v.arr;
+        // 右值自动释放的时候不应释放其占用的内存
+        v.arr = nullptr;
+    }
+    ~myVector(){
+        delete [] arr;
+    }
+};
+
+int main(){
+    auto v = myVector(2);
+    // 调用拷贝构造函数
+    auto v1(v);
+    
+    // 调用移动构造函数
+    auto v2(std::move(v1));
+    return 0;
+}
+```	
+
+### move 赋值
+
+与move构造函素目的类似，避免深度拷贝。
+
+```cpp
+X& X::operator=(X const &rhs);
+X& X::operator=(X&& rhs);
+```
+
+### Perfect Fowarding
+
+```cpp
+void foo(myVector arg);
+
+template<typename T>
+void relay(T arg){
+	foo(arg);
+}
+
+int main(){
+	myVector v = createMyVector();
+	//传入左值，应当调用拷贝构造函数
+	relay(v);
+
+	//传入右值，应当调用移动移动构造
+	relay(createMyVector());
+}
+
+// 方案： 我们需要更改relay函数为：
+
+template<typename T>
+void relay(T&& arg){
+	foo(std::forward<T>(arg));
+}
+```
+
+### C++11 Shared Pointer
+
+```cpp
+#include <memory>
+#include <iostream>
+
+class Dog {
+	std::string _name;
+	Dog(std::string name):_name(name){
+		std::cout << "dog is created " << name << std::endl;
+	}
+	Dog():_name("nameless"){
+		std::cout << "dog is created nameless" << std::endl;
+	}
+	~Dog() {
+		std::cout << "dog is deleted";
+	}
+	void bark() {
+		std::cout << _name << "is baking" << std::endl;
+	}
+}
+
+int main() {
+	std::shared_ptr<Dog> p1 = make_shared<Dog>("dog1");
+	p1->bark();
+}
+```
+
+### C++11 Unique Pointer
